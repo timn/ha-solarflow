@@ -1,0 +1,23 @@
+---
+secrets: /config/secrets.yaml
+appdaemon:
+  #latitude:
+  #longitude:
+  #elevation:
+  time_zone: Europe/Berlin
+  plugins:
+    HASS:
+      type: hass
+    MQTT:
+      type: mqtt
+      namespace: mqtt
+      client_topics: NONE
+      client_host: core-mosquitto
+      client_port: 1883
+      client_user: !secret appdaemon_mqtt_username
+      client_password: !secret appdaemon_mqtt_password
+http:
+  url: http://127.0.0.1:5050
+admin:
+api:
+hadashboard:

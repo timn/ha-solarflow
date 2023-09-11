@@ -1,0 +1,7 @@
+# Generic globs
+*~
+
+# Vim files
+.*.swp
+.*.swo
+

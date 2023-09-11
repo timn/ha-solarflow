@@ -1,0 +1,23 @@
+---
+solarflow:
+  module: solarflow
+  class: SolarFlow
+  topic_prefix: !secret appdaemon_solarflow_topic_prefix
+  device_id: !secret appdaemon_solarflow_device_id
+
+solarflow_control:
+  module: solarflow_control
+  class: SolarFlowControl
+  max_output: 250
+  # Possible controller classes:
+  # - AlwaysZero:   always charge, only output when battery full
+  # - MinimizeGrid: always try to maximize battery usage to minimize
+  #                 consumption form the grid.
+  # - NightUsage:   charge during the day, use battery during the night.
+  #                 in the morning regulates and starts full charging when
+  #                 either solar exceeds consumption or cutoff time reached.
+  #                 Start using battery at rampup time again.
+  controller_class: NightUsage
+  # Arguments specific to NightUsage controller
+  morning_cutoff_time: "10:30:00"
+  evening_rampup_time: "17:00:00"
