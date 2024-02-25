@@ -23,6 +23,12 @@ PV_BRANDS = {
   'bosswerk': 15,
 }
 
+BYPASS_MODES = {
+  'automatic': 0,
+  'always_off': 1,
+  'always_on' : 2,
+}
+
 class SolarFlow(mqtt.Mqtt):
   """SolarFlow MQTT bridge.
 
@@ -168,6 +174,20 @@ class SolarFlow(mqtt.Mqtt):
           'unique_id': f'{node_id}_state',
         }
       },
+      'bypass_mode': {
+        'command_callback': self.set_bypass_mode,
+        'config_topic': f'{DISCOVERY_PREFIX}/select/{node_id}/bypass_mode/config',
+        'config': {
+          'device': device_info,
+          'name': 'SolarFlow Bypass Mode',
+          'object_id': 'solarflow_bypass_mode',
+          'state_topic': 'solarflow/bypass_mode/state',
+          'command_topic': 'solarflow/bypass_mode/set',
+	        'unique_id': f'{node_id}_bypass_mode',
+          'icon': 'mdi:domain',
+          'options': list(BYPASS_MODES.keys()),
+        }
+      },
       'home_output_power': {
         'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/home_output_power/config',
         'start_value': 0,
@@ -207,6 +227,34 @@ class SolarFlow(mqtt.Mqtt):
           'object_id': 'solarflow_solar_input_power',
           'state_topic': 'solarflow/solar_input_power/state',
           'unique_id': f'{node_id}_solar_input_power',
+          'icon': 'mdi:solar-power-variant-outline',
+        }
+      },
+      'solar_input_1_power': {
+        'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/solar_input_1/config',
+        'start_value': 0,
+        'config': {
+          'device': device_info,
+          'device_class': 'power',
+          'unit_of_measurement': 'W',
+          'name': 'SolarFlow Solar Input 1 Power',
+          'object_id': 'solarflow_solar_input_1_power',
+          'state_topic': 'solarflow/solar_input_1_power/state',
+          'unique_id': f'{node_id}_solar_input_1_power',
+          'icon': 'mdi:solar-power-variant-outline',
+        }
+      },
+      'solar_input_2_power': {
+        'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/solar_input_2/config',
+        'start_value': 0,
+        'config': {
+          'device': device_info,
+          'device_class': 'power',
+          'unit_of_measurement': 'W',
+          'name': 'SolarFlow Solar Input 2 Power',
+          'object_id': 'solarflow_solar_input_2_power',
+          'state_topic': 'solarflow/solar_input_2_power/state',
+          'unique_id': f'{node_id}_solar_input_2_power',
           'icon': 'mdi:solar-power-variant-outline',
         }
       },
@@ -496,10 +544,21 @@ class SolarFlow(mqtt.Mqtt):
       calc_solar_overflow = True
       calc_state = True
 
+    if 'pvPower1' in properties:
+      self.publish_state('solar_input_1_power', properties['pvPower1'])
+
+    if 'pvPower2' in properties:
+      self.publish_state('solar_input_2_power', properties['pvPower2'])
+
     if 'packInputPower' in properties:
       self.publish_state('battery_input_power', properties['packInputPower'])
       calc_solar_overflow = True
       calc_state = True
+
+    if 'passMode' in properties:
+      bypass_mode = properties['passMode']
+      bypass_option = list(BYPASS_MODES.keys())[list(BYPASS_MODES.values()).index(bypass_mode)]
+      self.publish_state('bypass_mode', bypass_option)
 
     # The solar input that we have more than what we store in the battery is
     # our overflow. Calculating this is useful for the energy dashboard.
@@ -652,6 +711,19 @@ class SolarFlow(mqtt.Mqtt):
       'properties': {
         'inverseMaxPower': self.cache['max_inverter_input'],
         'pvBrand': PV_BRANDS[state],
+      },
+    }
+    self.mqtt_publish(self.topic_name_for('properties/write', command=True),
+                      self.create_request(args))
+
+  def set_bypass_mode(self, state: str) -> None:
+    if state not in BYPASS_MODES:
+      self.log(f'Received invalid bypass mode {state}, not in list of known modes ({", ".join(BYPASS_MODES)})')
+      return
+
+    args = {
+      'properties': {
+        'passMode': BYPASS_MODES[state],
       },
     }
     self.mqtt_publish(self.topic_name_for('properties/write', command=True),
