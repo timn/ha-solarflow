@@ -544,11 +544,18 @@ class SolarFlow(mqtt.Mqtt):
       calc_solar_overflow = True
       calc_state = True
 
+    # Have seen pvPower* keys in Hub1200, and solarPower* in Hub2000
     if 'pvPower1' in properties:
       self.publish_state('solar_input_1_power', properties['pvPower1'])
 
+    if 'solarPower1' in properties:
+      self.publish_state('solar_input_1_power', properties['solarPower1'])
+
     if 'pvPower2' in properties:
       self.publish_state('solar_input_2_power', properties['pvPower2'])
+
+    if 'solarPower2' in properties:
+      self.publish_state('solar_input_2_power', properties['solarPower2'])
 
     if 'packInputPower' in properties:
       self.publish_state('battery_input_power', properties['packInputPower'])
