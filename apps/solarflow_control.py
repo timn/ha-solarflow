@@ -1,4 +1,9 @@
-# Copyright (C) 2023 Tim Niemueller
+# Copyright (C) 2023-2024 Tim Niemueller
+#
+# Controller to set SolarFlow battery output automatically given an overall
+# house total (positive for consumption and negative for net production) by
+# various criteria.
+
 from typing import Any, Optional
 
 from appdaemon.entity import Entity
@@ -12,12 +17,12 @@ HOUSE_POWER = "sensor.powermeter_house_active_power"
 SOLARFLOW_TO_BATTERY = "sensor.solarflow_battery_input_power"
 SOLARFLOW_FROM_BATTERY = "sensor.solarflow_battery_output_power"
 SOLARFLOW_OUTPUT_LIMIT = "number.solarflow_output_limit"
-SOLARFLOW_HOME_OUTPUT = "sensor.solarflow_home_output_power"
 SOLARFLOW_MIN_SOC = "number.solarflow_min_soc"
 
 CONTROLLER_SWITCH_NAME = "switch.solarflow_control"
 
 DEFAULT_MAX_OUTPUT = 500.
+LOOP_PERIOD_SEC = 30
 
 class Controller(abc.ABC):
   """Base class for set point controller.
@@ -38,10 +43,9 @@ class Controller(abc.ABC):
     use value retrieved from HomeAssistant.
 
     Returns:
-      None if no new set point was calculated (currently set point will be
-      remain effective), or a float number of the new limit. The limit does
-      not need to account for min and max output values, the caller will take
-      care of that.
+      None if no new set point was calculated (currently set point will remain
+      effective), or a float number of the new limit. The limit does not need to
+      account for min and max output values, the caller will take care of that.
     """
     return None
 
@@ -79,16 +83,20 @@ class MinimizeGrid(Controller):
   grid consumption).
   """
 
+  # Min absolute difference of current output limit to actual consumption to
+  # increase output
+  CONSUMPTION_THRESHOLD = 5.
+
   def __init__(self, solarflow_control: 'SolarFlowControl'):
     Controller.__init__(self, solarflow_control)
 
   def compute(self) -> Optional[float]:
     # We are feeding energy to the grid
     if self.get_value(HOUSE_POWER) < 0 and self.get_value(SOLARFLOW_OUTPUT_LIMIT) > 0:
-      return max(0, self.get_value(HOUSE_POWER) + self.get_value(SOLARFLOW_OUTPUT_LIMIT))
+      return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + self.get_value(HOUSE_POWER)
 
     # We are drawing energy from the grid, try to increase battery output
-    if self.get_value(HOUSE_POWER) > 25:
+    if self.get_value(HOUSE_POWER) > self.CONSUMPTION_THRESHOLD:
       return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + self.get_value(HOUSE_POWER)
 
     return None
@@ -107,48 +115,36 @@ class NightUsage(Controller):
   morning_cutoff_time: time
   evening_rampup_time: time
 
-  charging: bool
+  # Min absolute difference of current output limit to actual consumption to
+  # increase output
+  CONSUMPTION_THRESHOLD = 10.
 
   def __init__(self, solarflow_control: 'SolarFlowControl'):
     Controller.__init__(self, solarflow_control)
     self.morning_cutoff_time = time.fromisoformat(solarflow_control.args['morning_cutoff_time'])
     self.evening_rampup_time = time.fromisoformat(solarflow_control.args['evening_rampup_time'])
-    self.charging = False
 
   def compute(self) -> Optional[float]:
     now = datetime.now().time()
-    if now < self.morning_cutoff_time:
-      # We already ran into zero grid once in the morning and switched to charging only
-      if self.charging:
-        return None
 
-      if self.get_value(SOLARFLOW_HOME_OUTPUT) > 0:
-        value = self.get_value(SOLARFLOW_OUTPUT_LIMIT) + self.get_value(HOUSE_POWER)
-      else:
-        value = self.get_value(HOUSE_POWER)
-
-      if value <= 0:
-        self.charging = True
+    # That's day time when we don't want to run on battery
+    if now >= self.morning_cutoff_time and now < self.evening_rampup_time:
+      if self.get_value(SOLARFLOW_OUTPUT_LIMIT) != 0.:
         return 0.
-
-    elif now >= self.morning_cutoff_time and now < self.evening_rampup_time:
-      if self.charging:
+      else:
         return None
 
-      self.charging = True
-      return 0.
+    # Try to keep us around zero:
+    # if we're feeding to the grid, house power will be less than zero and we
+    # will decrease battery output. If we're consuming it's positive and we
+    # increase. Clamping to max_output happens outside.
+    # On over-production we always immediately reduce, on minor consumption we
+    # observe a threshold.
+    house_power = self.get_value(HOUSE_POWER)
+    if house_power < 0 or house_power > self.CONSUMPTION_THRESHOLD:
+      return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + house_power
 
-    else: # evening
-      self.charging = False
-
-      # Try to keep us around zero:
-      # if we're feeding to the grid, house power will be less than zero and we
-      # will decrease battery output. If we're consuming it's positive and we
-      # increase. Clamping to max_output happens outside.
-      if self.get_value(SOLARFLOW_HOME_OUTPUT) > 0:
-        return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + self.get_value(HOUSE_POWER)
-      else:
-        return self.get_value(HOUSE_POWER)
+    return None
 
 class SolarFlowControl(hassapi.Hass):
   """SolarFlow automatic controller.
@@ -191,10 +187,9 @@ class SolarFlowControl(hassapi.Hass):
     self.add_sensor(SOLARFLOW_TO_BATTERY)
     self.add_sensor(SOLARFLOW_FROM_BATTERY)
     self.add_sensor(HOUSE_POWER)
-    self.add_sensor(SOLARFLOW_HOME_OUTPUT)
     self.add_sensor(SOLARFLOW_OUTPUT_LIMIT)
     self.add_sensor(SOLARFLOW_MIN_SOC)
-    self.loop_handle = self.run_every(self.control_loop, "now", 30)
+    self.loop_handle = self.run_every(self.control_loop, "now", LOOP_PERIOD_SEC)
 
   def terminate(self) -> None:
     if self.loop_handle: self.cancel_timer(self.loop_handle)
@@ -236,7 +231,7 @@ class SolarFlowControl(hassapi.Hass):
 
   def get_value(self, entity: str) -> float:
     state = self.entities[entity].get_state()
-    if state is None: return 0.
+    if state is None or state == "unavailable": return 0.
     return float(state)
 
   def add_sensor(self, entity: str) -> None:
