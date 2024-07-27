@@ -1,9 +1,28 @@
 # SolarFlow Local MQTT Bridge and Controller
 
-This class reads input from SolarFlow via (redirected) MQTT from the device and
-converts it to topics and discovery information compatible to HomeAssistant. It
-also reacts to time requests and thus allows to completely disconnect the device
-from the vendor cloud and using and controlling it purely locally.
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+The [Zendure SolarFlow](https://zendure.de/products/solarflow) is a system to
+store solar energy to a battery to use it later, e.g., during the night. By
+default, it connects to a cloud MQTT server run by the vendor and feeding data
+to the app.
+
+In this repo, you find instructions and an AppDaemon app that connects SolarFlow
+*over the local network* to Home Assistant without a cloud service. It does so
+by re-routing MQTT traffic to a local server and then addig a shim to translate
+from SolarFlow's MQTT messages to other MQTT topics that can then be easily
+consumed (and auto-configured) in Home Assistant. It also adds simple
+controllers that enable to control battery output based on house consumption (if
+that data is available in Home Assistant). Cloud connectivity can be retained if
+desired.
+
+> [!WARNING]
+> This guide is for advanced users, in particular knowledge about computer
+> networks, Python code, and Home Assistant are required. Use this at your own
+> risk. You are responsible yourself should you choose to expose your device to
+> this procedure.
+
+![Diagram](docs/SolarFlow_local.png)
 
 ## Overview
 
@@ -25,12 +44,12 @@ the connection to the Zendure cloud MQTT server is not encrypted (one more
 reason to cut that connection). So to retrieve the credentials, we need to
 capture the traffic between the SolarFlow and the MQTT server.
 
-The easiest way is using a packet sniffer such as WireShark. Some routers may
-also support packet capture. The FritzBox can do that and that's what I have
-used. Go to [http://fritz.box/support.lua](http://fritz.box/support.lua). Then
-find the packet capturing option and follow the link. Hit "Start" for the
-Internet uplink. It will start downloadig a file that contains the captured
-packets.
+The easiest way is using a packet sniffer such as
+[WireShark](https://www.wireshark.org/). Some routers may also support packet
+capture. The FritzBox can do that and that's what I have used. Go to
+[http://fritz.box/support.lua](http://fritz.box/support.lua). Then find the
+packet capturing option and follow the link. Hit "Start" for the Internet
+uplink. It will start downloadig a file that contains the captured packets.
 
 Then go to the SolarFlow and push the IOT button to disconnect it. The press
 it again to connect again.
@@ -68,7 +87,7 @@ lower right for the store to install Mosquitto.
 
 Once installed, go to its Configuration page. In the "Logins" section, add an
 entry like this:
-```
+```yaml
 - username: <USERNAME>
   password: <PASSWORD>
 ```
@@ -93,7 +112,7 @@ dnsmasq is a DNS server which provides plenty of configuration options. Install
 the [dnsmasq
 addon](https://github.com/home-assistant/addons/blob/master/dnsmasq/DOCS.md). Then go to the add-on configuration tab in Home Assistant and to the config section "Hosts" add something similar as the following:
 
-```
+```yaml
 - host: mq.zen-iot.com
   ip: 192.168.1.x
 ```
@@ -135,7 +154,7 @@ Now go to the SolarFlow and click the IOT button *shortly*. This will disable
 the network connection. Wait a few seconds and then click to enable it
 again. Now the new DNS configuration and MQTT server should be in effect. To verify, use the following to print traffic coming from SolarFlow:
 
-```
+```shell
 mosquitto_sub -u <USERNAME> -P <PASSWORD> -h <HA-IP> -p 1883 -t '/<PREFIX>'
 ```
 
@@ -173,7 +192,7 @@ AppDaemon. Then, on Home Assistant, edit
 `/addon_configs/*_appdaemon/appdaemon.yaml` (the `*` denotes some arbitrary
 string).
 
-```
+```yaml
 ---
 secrets: /homeassistant/secrets.yaml
 appdaemon:
@@ -203,7 +222,7 @@ hadashboard:
 Then edit `/homeassistant/secrets.yaml`. You need to configure the following
 entries. Provide the MQTT credentials setup for AppDaemon.
 
-```
+```yaml
 appdaemon_mqtt_username: <APPDAEMON-MQTT-USERNAME>
 appdaemon_mqtt_password: "<APPDAEMON-MQTT-PASSWORD>"
 ```
@@ -216,7 +235,7 @@ HA-compatible MQTT traffic and to enable (automatic) control.
 
 First, edit `/homeassistant/secrets.yaml` to add the following:
 
-```
+```yaml
 appdaemon_solarflow_topic_prefix: "<PREFIX>"
 appdaemon_solarflow_device_id: "<DEVICE-ID>"
 ```
@@ -226,7 +245,7 @@ analyzing the recorded MQTT data.
 
 Next, edit `/addon_configs/*_appdaemon/apps/apps.yaml` and add the following:
 
-```
+```yaml
 ---
 solarflow:
   module: solarflow
