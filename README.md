@@ -295,3 +295,38 @@ Devices & Services, then MQTT you should see "SolarFlow" and all data from your
 SolarFlow in Home Assistant.
 
 Congratulations if you made it this far, in particular if you succeeded!
+
+## Optional: Enable Zendure Cloud and App
+
+If you still want to be able to use the vendor cloud connection and thus the
+Zendure app, you can configure Mosquitto to relay data also to the Zendure cloud
+(this requires that you redirect the DNS only for SolarFlow, not your entire
+network, in particular not your Home Assistant).
+
+In the Mosquitto add-on configuration, add the following to the "Customize" box:
+
+```yaml
+active: true
+folder: mosquitto
+```
+
+Then, create a file `/share/mosquitto/vendor_bridge.conf` with the following content:
+
+```
+connection zendure-bridge
+address mq.zen-iot.com:1883
+remote_username <USERNAME>
+remote_password <PASSWORD>
+remote_clientid <DEVICE-ID>
+notifications_local_only true
+bridge_protocol_version mqttv31
+
+topic # out 0 /<PREFIX>/<DEVICE-ID>/ /<PREFIX>/<DEVICE-ID>/
+topic # in 0 iot/<PREFIX>/<DEVICE-ID>/ iot/<PREFIX>/<DEVICE-ID>/
+```
+
+Replace `<USERNAME>`, `<PASSWORD`, `<DEVICE-ID>`, and `<PREFIX>` with the
+relevant data you acquired earlier.
+
+This enables two-way communication. I have only had this enabled temporarily,
+e.g., to find out new settings after an update. Use with caution.
