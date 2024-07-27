@@ -252,7 +252,46 @@ solarflow:
   class: SolarFlow
   topic_prefix: !secret appdaemon_solarflow_topic_prefix
   device_id: !secret appdaemon_solarflow_device_id
+```
 
+Modify the `max_output`, `controller_class`, `morning_cutoff_time`, and
+`evening_rampup_time` to your liking.
+
+Copy the `apps/solarflow.py` to the `apps` directory on HA (next to the
+`apps.yaml` files).
+
+Restart the AppDaemon add-on and watch the logs. If successful, you should see outputs like this:
+
+```
+INFO AppDaemon: Calling initialize() for solarflow
+INFO solarflow: Received serial XXX via log
+INFO solarflow: Sending discovery info
+INFO solarflow: Received time-sync request, replying with current time
+```
+
+You will see `time-sync` requests only occasionally, in particular when toggling
+IOT on and off on the SolarFlow.
+
+Once you see `Send discovery info`, in Home Assistant, then Settings, then
+Devices & Services, then MQTT you should see "SolarFlow" and all data from your
+SolarFlow in Home Assistant.
+
+Congratulations if you made it this far, in particular if you succeeded!
+
+### Optional: Output Controller
+
+A second AppDaemon app enables automated output control. It assumes that an
+overall total consumption of the house/appartment is available. It must be a
+single float value, negative for production and positive for consumption, for
+example, [reading from a power
+meter](https://github.com/timn/esphome-meters/tree/main/electricity).
+
+To enable, copy `apps/solarflow_control.py` to the AppDaemon `apps`
+directory. Then add the following to `apps.yaml`. This will also add a switch to
+Home Assistant to enable or disable automatic control, e.g., to temporarily
+override.
+
+```yaml
 solarflow_control:
   module: solarflow_control
   class: SolarFlowControl
@@ -271,30 +310,14 @@ solarflow_control:
   evening_rampup_time: "17:00:00"
 ```
 
-Modify the `max_output`, `controller_class`, `morning_cutoff_time`, and
-`evening_rampup_time` to your liking.
+Check the script for the appropriate constants for entity IDs, in particular for
+`HOUSE_POWER`.
 
-Copy the `apps/solarflow.py` and `apps/solarflow_control.py` to the `apps`
-directory on HA (next to the `apps.yaml` files).
-
-Restart the AppDaemon add-on and watch the logs. If successful, you should see outputs like this:
+Once loaded you should see the following in the AppDaemon log.
 
 ```
-INFO AppDaemon: Calling initialize() for solarflow
-INFO solarflow: Received serial XXX via log
-INFO solarflow: Sending discovery info
-INFO solarflow: Received time-sync request, replying with current time
 INFO AppDaemon: Calling initialize() for solarflow_control
 ```
-
-You will see `time-sync` requests only occasionally, in particular when toggling
-IOT on and off on the SolarFlow.
-
-Once you see `Send discovery info`, in Home Assistant, then Settings, then
-Devices & Services, then MQTT you should see "SolarFlow" and all data from your
-SolarFlow in Home Assistant.
-
-Congratulations if you made it this far, in particular if you succeeded!
 
 ## Optional: Enable Zendure Cloud and App
 
