@@ -5,3 +5,5 @@
 .*.swp
 .*.swo
 
+# Local Python venv
+/venv
