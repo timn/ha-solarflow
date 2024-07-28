@@ -9,7 +9,7 @@ to the app.
 
 In this repo, you find instructions and an AppDaemon app that connects SolarFlow
 *over the local network* to Home Assistant without a cloud service. It does so
-by re-routing MQTT traffic to a local server and then addig a shim to translate
+by re-routing MQTT traffic to a local server and then adding a shim to translate
 from SolarFlow's MQTT messages to other MQTT topics that can then be easily
 consumed (and auto-configured) in Home Assistant. It also adds simple
 controllers that enable to control battery output based on house consumption (if
@@ -49,7 +49,7 @@ The easiest way is using a packet sniffer such as
 capture. The FritzBox can do that and that's what I have used. Go to
 [http://fritz.box/support.lua](http://fritz.box/support.lua). Then find the
 packet capturing option and follow the link. Hit "Start" for the Internet
-uplink. It will start downloadig a file that contains the captured packets.
+up-link. It will start downloading a file that contains the captured packets.
 
 Then go to the SolarFlow and push the IOT button to disconnect it. The press
 it again to connect again.
@@ -71,19 +71,19 @@ the form "/<PREFIX>/<USERNAME>/...". We need to write down what
 
 So you should have the username, password, and the topic prefix.
 
-## Prequisites
+## Prerequisites
 For this approach to work, your **Home Assistant requires a fixed IP address**
 in your local network (that is because we are going to redirect DNS traffic to
 it).
 
 ## Install Mosquitto MQTT Server
 Mosquitto is a common MQTT server implementation. It is readily available as a
-[Home Assistant add-on](https://www.home-assistant.io/addons/). In
-Home Assistant go to the
-[Add-Ons page](https://my.home-assistant.io/redirect/supervisor/) (this links
-to your instance if you have configured
-[My Home Assistant](https://my.home-assistant.io/)) and use the button on the
-lower right for the store to install Mosquitto.
+[Home Assistant add-on](https://www.home-assistant.io/addons/). In Home
+Assistant go to the [Add-Ons
+page](https://my.home-assistant.io/redirect/supervisor/) (this links to your
+instance if you have configured [My Home
+Assistant](https://my.home-assistant.io/)) and use the button on the lower right
+for the store to install Mosquitto.
 
 Once installed, go to its Configuration page. In the "Logins" section, add an
 entry like this:
@@ -110,7 +110,9 @@ maybe add a static network configuration for SolarFlow (not tested).
 ### dnsmasq
 dnsmasq is a DNS server which provides plenty of configuration options. Install
 the [dnsmasq
-addon](https://github.com/home-assistant/addons/blob/master/dnsmasq/DOCS.md). Then go to the add-on configuration tab in Home Assistant and to the config section "Hosts" add something similar as the following:
+add-on](https://github.com/home-assistant/addons/blob/master/dnsmasq/DOCS.md). Then
+go to the add-on configuration tab in Home Assistant and to the config section
+"Hosts" add something similar as the following:
 
 ```yaml
 - host: mq.zen-iot.com
@@ -120,7 +122,7 @@ addon](https://github.com/home-assistant/addons/blob/master/dnsmasq/DOCS.md). Th
 Replace `ip` by the (fixed) IP address of Home Assistant. This will overwrite
 the DNS name.
 
-If you use AdGuard for redirectig DNS traffic (see below), change the exposed
+If you use AdGuard for redirecting DNS traffic (see below), change the exposed
 exports ports for TCP and UDP traffic to 1053. Do not do this if you use a
 static network configuration.
 
@@ -130,12 +132,12 @@ when SolarFlow will get our There are several ways to achieve this. The easiest
 may be to configure a static IP and provide the Home Assistant IP as DNS (I
 haven't tried this). Here, we use AdGuard.
 
-AdGuard is an adblocker that works by modifying DNS traffic. Especially when
+AdGuard is an ad-blocker that works by modifying DNS traffic. Especially when
 already using it already it's an easy way to redirect DNS traffic. It can be
 installed as an [Home Assistant
 add-on](https://github.com/hassio-addons/addon-adguard-home). Reconfigure your
-router to perform all DNS lookups through AdGuard ([German
-howto](https://heise.de/-9219120)).
+router to perform all DNS look-ups through AdGuard ([German
+how-to](https://heise.de/-9219120)).
 
 In your DHCP server set a *fixed IP address* for your SolarFlow, or configure
 it to a fixed IP.
@@ -152,7 +154,8 @@ Now all DNS traffic from the SolarFlow is resolved using dnsmasq.
 ## Testing MQTT traffic
 Now go to the SolarFlow and click the IOT button *shortly*. This will disable
 the network connection. Wait a few seconds and then click to enable it
-again. Now the new DNS configuration and MQTT server should be in effect. To verify, use the following to print traffic coming from SolarFlow:
+again. Now the new DNS configuration and MQTT server should be in effect. To
+verify, use the following to print traffic coming from SolarFlow:
 
 ```shell
 mosquitto_sub -u <USERNAME> -P <PASSWORD> -h <HA-IP> -p 1883 -t '/<PREFIX>'
@@ -181,7 +184,7 @@ time service to the SolarFlow.
 
 We use the [AppDaemon add-on](https://github.com/hassio-addons/addon-appdaemon)
 to run this script continuously in Home Assistant. Install it to Home Assistant
-throught the Add-ons page of the settings. You will also need access to the file
+through the Add-ons page of the settings. You will also need access to the file
 system, for example using SSH.
 
 ### AppDaemon Setup
@@ -226,7 +229,7 @@ entries. Provide the MQTT credentials setup for AppDaemon.
 appdaemon_mqtt_username: <APPDAEMON-MQTT-USERNAME>
 appdaemon_mqtt_password: "<APPDAEMON-MQTT-PASSWORD>"
 ```
-Restart AppDaemon and check the log to verify that everything went ok.
+Restart AppDaemon and check the log to verify that everything went OK.
 
 ### SolarFlow Scripts in AppDaemon
 
@@ -260,7 +263,8 @@ Modify the `max_output`, `controller_class`, `morning_cutoff_time`, and
 Copy the `apps/solarflow.py` to the `apps` directory on HA (next to the
 `apps.yaml` files).
 
-Restart the AppDaemon add-on and watch the logs. If successful, you should see outputs like this:
+Restart the AppDaemon add-on and watch the logs. If successful, you should see
+outputs like this:
 
 ```
 INFO AppDaemon: Calling initialize() for solarflow
@@ -281,7 +285,7 @@ Congratulations if you made it this far, in particular if you succeeded!
 ### Optional: Output Controller
 
 A second AppDaemon app enables automated output control. It assumes that an
-overall total consumption of the house/appartment is available. It must be a
+overall total consumption of the house/apartment is available. It must be a
 single float value, negative for production and positive for consumption, for
 example, [reading from a power
 meter](https://github.com/timn/esphome-meters/tree/main/electricity).
@@ -333,7 +337,8 @@ active: true
 folder: mosquitto
 ```
 
-Then, create a file `/share/mosquitto/vendor_bridge.conf` with the following content:
+Then, create a file `/share/mosquitto/vendor_bridge.conf` with the following
+content:
 
 ```
 connection zendure-bridge
