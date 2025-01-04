@@ -47,7 +47,6 @@ class SolarFlow(mqtt.Mqtt):
   module_versions: dict[str, int]
   battery_packs: list[str]
   topics: dict[str, Any]
-  announced: bool
   cache: dict[str, Union[str, int]]
 
   def initialize(self) -> None:
@@ -59,7 +58,6 @@ class SolarFlow(mqtt.Mqtt):
     self.topics = {}
     self.battery_packs = []
     self.command_topics = []
-    self.announced = False
     self.cache = {}
 
     self.listen_event(self.message_received, 'MQTT_MESSAGE')
@@ -125,7 +123,9 @@ class SolarFlow(mqtt.Mqtt):
     self.request_all()
     self.run_in(self.periodic_request_all, REQUEST_ALL_INTERVAL_SEC)
 
-  def state_topic(self, item: str) -> str:
+  def state_topic(self, item: str) -> str | None:
+    if item not in self.topics:
+      return None
     return self.topics[item]['config']['state_topic']
 
   def try_send_discovery(self, cb_args: dict[str, Any] = {}) -> None:
@@ -136,10 +136,8 @@ class SolarFlow(mqtt.Mqtt):
       return
 
     if not self.battery_packs:
-      self.log('Battery packs not yet known, not sending discovery info')
+      self.log('Battery packs not yet known (or no batteries installed)')
       self.request_all()
-      self.run_in(self.try_send_discovery, SEND_DISCOVERY_INTERVAL_SEC)
-      return
 
     if 'max_inverter_input' not in self.cache:
       self.log('Max inverter input not yet known, not sending discovery info')
@@ -151,7 +149,7 @@ class SolarFlow(mqtt.Mqtt):
     node_id = f'solarflow_{self.device_serial}_{self.device_id}'
     device_info = self.get_device_info()
 
-    self.topics = {
+    new_topics = {
       'battery': {
         'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/battery_soc/config',
         'config': {
@@ -183,7 +181,7 @@ class SolarFlow(mqtt.Mqtt):
           'object_id': 'solarflow_bypass_mode',
           'state_topic': 'solarflow/bypass_mode/state',
           'command_topic': 'solarflow/bypass_mode/set',
-	        'unique_id': f'{node_id}_bypass_mode',
+          'unique_id': f'{node_id}_bypass_mode',
           'icon': 'mdi:domain',
           'options': list(BYPASS_MODES.keys()),
         }
@@ -420,7 +418,7 @@ class SolarFlow(mqtt.Mqtt):
         pack_state = f'{pack_name}_state'
         pack_temp = f'{pack_name}_temperature'
         pack_index = i + 1
-        self.topics[pack_soc] = {
+        new_topics[pack_soc] = {
           'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/{pack_soc}/config',
           'config': {
             'device': device_info,
@@ -432,7 +430,7 @@ class SolarFlow(mqtt.Mqtt):
             'unique_id': f'{node_id}_{pack_soc}',
           },
         }
-        self.topics[pack_state] = {
+        new_topics[pack_state] = {
           'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/{pack_state}/config',
           'config': {
             'device': device_info,
@@ -442,7 +440,7 @@ class SolarFlow(mqtt.Mqtt):
             'unique_id': f'{node_id}_{pack_state}',
           },
         }
-        self.topics[pack_temp] = {
+        new_topics[pack_temp] = {
           'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/{pack_temp}/config',
           'config': {
             'device': device_info,
@@ -455,18 +453,20 @@ class SolarFlow(mqtt.Mqtt):
           },
         }
 
-    self.command_topics = [info['config']['command_topic']
-                           for info in self.topics.values()
-                           if 'command_topic' in info['config']]
-    for topic in self.command_topics:
-      self.mqtt_subscribe(topic)
+    new_command_topics = [info['config']['command_topic']
+                          for info in self.topics.values()
+                          if 'command_topic' in info['config']]
+    for topic in new_command_topics:
+      if topic not in self.command_topics:
+        self.mqtt_subscribe(topic)
+        self.command_topics.append(topic)
 
-    for item, info in self.topics.items():
-      self.mqtt_publish(info['config_topic'], json.dumps(info['config']))
-      if 'start_value' in info:
-        self.mqtt_publish(info['config']['state_topic'], info['start_value'])
-
-    self.announced = True
+    for item, info in new_topics.items():
+      if item not in self.topics:
+        self.mqtt_publish(info['config_topic'], json.dumps(info['config']))
+        if 'start_value' in info:
+          self.mqtt_publish(info['config']['state_topic'], info['start_value'])
+        self.topics[item] = info
 
     # Periodically run this again, performs this once right away
     self.periodic_request_all()
@@ -515,9 +515,11 @@ class SolarFlow(mqtt.Mqtt):
   def publish_state(self, item: str, state: Union[str, int]) -> None:
     self.cache[item] = state
 
-    if not self.announced: return
-    self.mqtt_publish(self.state_topic(item), state)
+    state_topic = self.state_topic(item)
+    if state_topic is None:
+      return
 
+    self.mqtt_publish(state_topic, state)
 
   def properties_report_received(self, data) -> None:
     if 'properties' not in data:
@@ -629,6 +631,9 @@ class SolarFlow(mqtt.Mqtt):
       if 'packData' in data:
         pack_data = data['packData']
         self.battery_packs = [pack['sn'] for pack in pack_data]
+
+        # After getting battery info, re-schedule sending discovery info
+        self.run_in(self.try_send_discovery, SEND_DISCOVERY_INTERVAL_SEC)
 
     if 'packData' in data:
       pack_data = data['packData']
@@ -763,4 +768,3 @@ class SolarFlow(mqtt.Mqtt):
     }
     self.mqtt_publish(self.topic_name_for('properties/write', command=True),
                       self.create_request(args))
-
