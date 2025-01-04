@@ -1,4 +1,4 @@
-# Copyright (C) 2023 Tim Niemueller
+# Copyright (C) 2023-2025 Tim Niemueller
 
 from typing import Any, Callable, Optional, Union
 
@@ -410,6 +410,20 @@ class SolarFlow(mqtt.Mqtt):
           'options': list(PV_BRANDS.keys()),
         }
       },
+      'batteries_installed': {
+        'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/batteries_installed/config',
+        'config': {
+          'device': device_info,
+          'platform': 'sensor',
+          'name': 'SolarFlow Batteries Installed',
+          'object_id': 'solarflow_batteries_installed',
+          'state_topic': 'solarflow/batteries_installed/state',
+          'unique_id': f'{node_id}_batteries_installed',
+          'suggested_display_precision': 0,
+          'state_class': 'total',
+          'icon': 'mdi:battery-sync',
+        }
+      },
     }
 
     for i, serial in enumerate(self.battery_packs):
@@ -659,6 +673,8 @@ class SolarFlow(mqtt.Mqtt):
           if 'maxTemp' in pack:
             pack_temp = pack['maxTemp'] / 10.
             self.publish_state(f'{pack_name}_temperature', pack_temp)
+
+    self.publish_state('batteries_installed', len(self.battery_packs))
 
   def command_received(self, topic: str, data) -> None:
     for info in self.topics.values():
