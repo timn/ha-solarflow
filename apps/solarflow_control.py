@@ -23,6 +23,7 @@ CONTROLLER_SWITCH_NAME = "switch.solarflow_control"
 
 DEFAULT_MAX_OUTPUT = 500.
 LOOP_PERIOD_SEC = 30
+GET_HOUSE_POWER_MAX_TRIES = 10
 
 class Controller(abc.ABC):
   """Base class for set point controller.
@@ -60,6 +61,19 @@ class Controller(abc.ABC):
     """
     return self.solarflow_control.get_value(entity)
 
+  def get_house_power(self) -> float | None:
+    """Gets the current house power if available.
+
+    Returns:
+      Value of current house power, or None if it cannot be read.
+    """
+    for i in range(GET_HOUSE_POWER_MAX_TRIES):
+      try:
+        return self.get_value(HOUSE_POWER)
+      except ValueError:
+        pass
+
+    return None
 
 class AlwaysZero(Controller):
   """Example controller that always returns 0 as set point.
@@ -92,12 +106,16 @@ class MinimizeGrid(Controller):
 
   def compute(self) -> Optional[float]:
     # We are feeding energy to the grid
-    if self.get_value(HOUSE_POWER) < 0 and self.get_value(SOLARFLOW_OUTPUT_LIMIT) > 0:
-      return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + self.get_value(HOUSE_POWER)
+    house_power = self.get_house_power()
+    if house_power is None:
+      return None
+
+    if house_power < 0 and self.get_value(SOLARFLOW_OUTPUT_LIMIT) > 0:
+      return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + house_power
 
     # We are drawing energy from the grid, try to increase battery output
-    if self.get_value(HOUSE_POWER) > self.CONSUMPTION_THRESHOLD:
-      return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + self.get_value(HOUSE_POWER)
+    if house_power > self.CONSUMPTION_THRESHOLD:
+      return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + house_power
 
     return None
 
@@ -140,7 +158,10 @@ class NightUsage(Controller):
     # increase. Clamping to max_output happens outside.
     # On over-production we always immediately reduce, on minor consumption we
     # observe a threshold.
-    house_power = self.get_value(HOUSE_POWER)
+    house_power = self.get_house_power()
+    if house_power is None:
+      return None
+
     if house_power < 0 or house_power > self.CONSUMPTION_THRESHOLD:
       return self.get_value(SOLARFLOW_OUTPUT_LIMIT) + house_power
 
