@@ -29,6 +29,11 @@ BYPASS_MODES = {
   'always_on' : 2,
 }
 
+BATTERY_LOW_MODES = {
+  'stop_discharging': 0,
+  'shutdown': 1,
+}
+
 class SolarFlow(mqtt.Mqtt):
   """SolarFlow MQTT bridge.
 
@@ -184,6 +189,20 @@ class SolarFlow(mqtt.Mqtt):
           'unique_id': f'{node_id}_bypass_mode',
           'icon': 'mdi:domain',
           'options': list(BYPASS_MODES.keys()),
+        }
+      },
+      'battery_low_mode': {
+        'command_callback': self.set_battery_low_mode,
+        'config_topic': f'{DISCOVERY_PREFIX}/select/{node_id}/battery_low_mode/config',
+        'config': {
+          'device': device_info,
+          'name': 'SolarFlow Low Battery Mode',
+          'object_id': 'solarflow_battery_low_mode',
+          'state_topic': 'solarflow/battery_low_mode/state',
+          'command_topic': 'solarflow/battery_low_mode/set',
+          'unique_id': f'{node_id}_battery_low_mode',
+          'icon': 'mdi:battery-low',
+          'options': list(BATTERY_LOW_MODES.keys()),
         }
       },
       'home_output_power': {
@@ -583,6 +602,11 @@ class SolarFlow(mqtt.Mqtt):
       bypass_option = list(BYPASS_MODES.keys())[list(BYPASS_MODES.values()).index(bypass_mode)]
       self.publish_state('bypass_mode', bypass_option)
 
+    if 'hubState' in properties:
+      battery_low_mode = properties['hubState']
+      battery_low_mode_option = list(BATTERY_LOW_MODES.keys())[list(BATTERY_LOW_MODES.values()).index(battery_low_mode)]
+      self.publish_state('battery_low_mode', battery_low_mode_option)
+
     # The solar input that we have more than what we store in the battery is
     # our overflow. Calculating this is useful for the energy dashboard.
     if calc_solar_overflow and 'solar_input_power' in self.cache and 'battery_input_power' in self.cache:
@@ -755,6 +779,19 @@ class SolarFlow(mqtt.Mqtt):
     args = {
       'properties': {
         'passMode': BYPASS_MODES[state],
+      },
+    }
+    self.mqtt_publish(self.topic_name_for('properties/write', command=True),
+                      self.create_request(args))
+
+  def set_battery_low_mode(self, state: str) -> None:
+    if state not in BATTERY_LOW_MODES:
+      self.log(f'Received invalid low battery mode {state}, not in list of known modes ({", ".join(BATTERY_LOW_MODES)})')
+      return
+
+    args = {
+      'properties': {
+        'hubState': BATTERY_LOW_MODES[state],
       },
     }
     self.mqtt_publish(self.topic_name_for('properties/write', command=True),
