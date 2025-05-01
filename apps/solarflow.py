@@ -641,13 +641,16 @@ class SolarFlow(mqtt.Mqtt):
       self.publish_state('buzzer_switch', state)
 
     if 'packNum' in properties:
-      # This message has the canonical enumeration of battery packs
+      # This message has the canonical enumeration of battery packs.
       if 'packData' in data:
         pack_data = data['packData']
-        self.battery_packs = [pack['sn'] for pack in pack_data]
 
-        # After getting battery info, re-schedule sending discovery info
-        self.run_in(self.try_send_discovery, SEND_DISCOVERY_INTERVAL_SEC)
+        new_battery_packs = [pack['sn'] for pack in pack_data]
+        if new_battery_packs != self.battery_packs:
+          self.battery_packs = new_battery_packs
+
+          # After getting battery info, re-schedule sending discovery info
+          self.run_in(self.try_send_discovery, SEND_DISCOVERY_INTERVAL_SEC)
 
     if 'packData' in data:
       pack_data = data['packData']
