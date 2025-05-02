@@ -10,13 +10,19 @@ solarflow_control:
   class: SolarFlowControl
   max_output: 250
   # Possible controller classes:
-  # - AlwaysZero:   always charge, only output when battery full
-  # - MinimizeGrid: always try to maximize battery usage to minimize
-  #                 consumption form the grid.
-  # - NightUsage:   charge during the day, use battery during the night.
-  #                 in the morning regulates and starts full charging when
-  #                 either solar exceeds consumption or cutoff time reached.
-  #                 Start using battery at rampup time again.
+  # - AlwaysZero:    always charge, only output when battery full
+  # - MinimizeGrid:  always try to maximize battery usage to minimize
+  #                  consumption form the grid.
+  # - NightUsage:    charge during the day, use battery during the night.
+  #                  in the morning regulates and starts full charging when
+  #                  either solar exceeds consumption or cutoff time reached.
+  #                  Start using battery at rampup time again.
+  # - FixedSchedule: Start using battery at a fixed rate at a specified time,
+  #                  stop battery output at another specified time.
+  #                  Values:
+  #                    - start_time: time when to start battery output
+  #                    - end_time: time when to turn off battery output
+  #                    - output_limit: fixed battery output limit to set
   controller_class: NightUsage
   # Arguments specific to NightUsage controller
   morning_cutoff_time: "10:30:00"

@@ -167,6 +167,37 @@ class NightUsage(Controller):
 
     return None
 
+class FixedSchedule(Controller):
+  """Controller to enable battery output at a fixed rate at a specified time.
+
+  This will set a fixed rate at a specified time and turns it off at another specified time.
+  """
+
+  start_time: time
+  end_time: time
+  output_limit: int
+
+  def __init__(self, solarflow_control: 'SolarFlowControl'):
+    Controller.__init__(self, solarflow_control)
+    self.start_time = time.fromisoformat(solarflow_control.args['start_time'])
+    self.end_time = time.fromisoformat(solarflow_control.args['end_time'])
+    self.output_limit = int(solarflow_control.args['output_limit'])
+
+  def compute(self) -> Optional[float]:
+    now = datetime.now().time()
+
+    current_limit = self.get_value(SOLARFLOW_OUTPUT_LIMIT)
+
+    # That's day time when we don't want to run on battery
+    if now >= self.end_time and now < self.start_time:
+      if current_limit != 0.:
+        return 0.
+    else:
+      if current_limit != self.output_limit:
+        return self.output_limit
+
+    return None
+
 class SolarFlowControl(hassapi.Hass):
   """SolarFlow automatic controller.
 
