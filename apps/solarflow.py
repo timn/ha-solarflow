@@ -188,6 +188,7 @@ class SolarFlow(mqtt.Mqtt):
           'command_topic': 'solarflow/bypass_mode/set',
           'unique_id': f'{node_id}_bypass_mode',
           'icon': 'mdi:domain',
+          'entity_category': 'config',
           'options': list(BYPASS_MODES.keys()),
         }
       },
@@ -202,6 +203,7 @@ class SolarFlow(mqtt.Mqtt):
           'command_topic': 'solarflow/battery_low_mode/set',
           'unique_id': f'{node_id}_battery_low_mode',
           'icon': 'mdi:battery-low',
+          'entity_category': 'config',
           'options': list(BATTERY_LOW_MODES.keys()),
         }
       },
@@ -346,6 +348,7 @@ class SolarFlow(mqtt.Mqtt):
           'step': 1,
           'mode': 'slider',
           'icon': 'mdi:battery-10',
+          'entity_category': 'config',
         }
       },
       'max_soc': {
@@ -364,6 +367,7 @@ class SolarFlow(mqtt.Mqtt):
           'step': 1,
           'mode': 'slider',
           'icon': 'mdi:battery-90',
+          'entity_category': 'config',
         }
       },
       'max_inverter_input': {
@@ -382,6 +386,7 @@ class SolarFlow(mqtt.Mqtt):
           'step': 100,
           'mode': 'slider',
           'icon': 'mdi:meter-electric-outline',
+          'entity_category': 'config',
         }
       },
       'output_limit': {
@@ -413,6 +418,7 @@ class SolarFlow(mqtt.Mqtt):
           'command_topic': 'solarflow/buzzer_switch/set',
           'unique_id': f'{node_id}_buzzer_switch',
           'icon': 'mdi:surround-sound',
+          'entity_category': 'config',
         }
       },
       'pv_brand': {
@@ -426,6 +432,7 @@ class SolarFlow(mqtt.Mqtt):
           'command_topic': 'solarflow/pv_brand/set',
           'unique_id': f'{node_id}_pv_brand',
           'icon': 'mdi:domain',
+          'entity_category': 'config',
           'options': list(PV_BRANDS.keys()),
         }
       },
@@ -440,6 +447,7 @@ class SolarFlow(mqtt.Mqtt):
           'unique_id': f'{node_id}_batteries_installed',
           'suggested_display_precision': 0,
           'state_class': 'total',
+          'entity_category': 'diagnostic',
           'icon': 'mdi:battery-sync',
         }
       },
