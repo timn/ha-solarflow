@@ -34,6 +34,12 @@ BATTERY_LOW_MODES = {
   'shutdown': 1,
 }
 
+def _version_to_string(version: int) -> str:
+  major = (version & 0xF000) >> 12
+  minor = (version & 0x0F00) >> 8
+  patch = (version & 0x00FF)
+  return f"{major}.{minor}.{patch}"
+
 class SolarFlow(mqtt.Mqtt):
   """SolarFlow MQTT bridge.
 
@@ -53,11 +59,13 @@ class SolarFlow(mqtt.Mqtt):
   battery_packs: list[str]
   topics: dict[str, Any]
   cache: dict[str, Union[str, int]]
+  hub_version: str
 
   def initialize(self) -> None:
     self.set_namespace('mqtt')
     self.topic_prefix = self.args['topic_prefix']
     self.device_id = self.args['device_id']
+    self.hub_version = 'unknown'
     self.device_serial = None
     self.module_versions = {}
     self.topics = {}
@@ -100,6 +108,7 @@ class SolarFlow(mqtt.Mqtt):
       'manufacturer': 'Zendure',
       'model': 'SolarFlow',
       'identifiers': [self.device_id, self.device_serial],
+      'sw_version': self.hub_version,
     }
 
   def generate_timestamp(self) -> int:
@@ -175,6 +184,19 @@ class SolarFlow(mqtt.Mqtt):
           'object_id': 'solarflow_state',
           'state_topic': 'solarflow/state',
           'unique_id': f'{node_id}_state',
+        }
+      },
+      'hub_version': {
+        'config_topic': f'{DISCOVERY_PREFIX}/update/{node_id}/hub_version/config',
+        'config': {
+          'device': device_info,
+          'device_class': 'firmware',
+          'name': 'SolarFlow Hub Version',
+          'object_id': 'solarflow_hub_version',
+          'state_topic': 'solarflow/hub_version/state',
+          'icon': 'mdi:package',
+          'entity_category': 'diagnostic',
+          'unique_id': f'{node_id}_hub_version',
         }
       },
       'bypass_mode': {
@@ -458,6 +480,7 @@ class SolarFlow(mqtt.Mqtt):
         pack_soc = f'{pack_name}_soc'
         pack_state = f'{pack_name}_state'
         pack_temp = f'{pack_name}_temperature'
+        pack_version = f'{pack_name}_sw_version'
         pack_index = i + 1
         new_topics[pack_soc] = {
           'config_topic': f'{DISCOVERY_PREFIX}/sensor/{node_id}/{pack_soc}/config',
@@ -492,6 +515,19 @@ class SolarFlow(mqtt.Mqtt):
             'state_topic': f'solarflow/{pack_temp}/state',
             'unique_id': f'{node_id}_{pack_temp}',
           },
+        }
+        new_topics[pack_version] = {
+          'config_topic': f'{DISCOVERY_PREFIX}/update/{node_id}/{pack_version}/config',
+          'config': {
+            'device': device_info,
+            'device_class': 'firmware',
+            'name': f'SolarFlow Battery Pack {pack_index} Version',
+            'object_id': f'solarflow_{pack_version}',
+            'state_topic': f'solarflow/{pack_version}/state',
+            'icon': 'mdi:package',
+            'entity_category': 'diagnostic',
+            'unique_id': f'{node_id}_{pack_version}',
+          }
         }
 
     new_command_topics = [info['config']['command_topic']
@@ -660,6 +696,14 @@ class SolarFlow(mqtt.Mqtt):
     if 'remainInputTime' in properties:
       self.publish_state('battery_charge_time', properties['remainInputTime'])
 
+    if 'masterSoftVersion' in properties:
+      self.hub_version = _version_to_string(int(properties['masterSoftVersion']))
+      hub_version_json = {
+        'installed_version': self.hub_version,
+        'latest_version': self.hub_version,
+      }
+      self.publish_state('hub_version', json.dumps(hub_version_json))
+
     if 'pvBrand' in properties:
       pv_brand = properties['pvBrand']
       option = list(PV_BRANDS.keys())[list(PV_BRANDS.values()).index(pv_brand)]
@@ -708,6 +752,14 @@ class SolarFlow(mqtt.Mqtt):
           if 'maxTemp' in pack:
             pack_temp = pack['maxTemp'] / 10.
             self.publish_state(f'{pack_name}_temperature', pack_temp)
+
+          if 'softVersion' in pack:
+            pack_version = _version_to_string(int(pack['softVersion']))
+            pack_version_json = {
+              'installed_version': pack_version,
+              'latest_version': pack_version,
+            }
+            self.publish_state(f'{pack_name}_sw_version', json.dumps(pack_version_json))
 
     self.publish_state('batteries_installed', len(self.battery_packs))
 
